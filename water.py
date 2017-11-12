@@ -89,6 +89,28 @@ class Surface(object):
              x*self._wave_vector[n,0] + y*self._wave_vector[n,1] +
                 t*self._angular_frequency[n])
         return z
+    def wireframe(self):
+        # Возвращаем координаты всех вершин, кроме крайнего правого столбца
+        left=np.indices((self._size[0]-1,self._size[1]))
+        # Пересчитываем в координаты всех точек, кроме крайнего левого столбца
+        right=left+np.array([1,0])[:,None,None]
+        # Преобразуем массив точек в список (одномерный массив)
+        left_r=left.reshape((2,-1))
+        right_r=right.reshape((2,-1))
+        # Заменяем многомерные индексы линейными индексами
+        left_l=np.ravel_multi_index(left_r, self._size)
+        right_l=np.ravel_multi_index(right_r, self._size)
+        # собираем массив пар точек
+        horizontal=np.concatenate((left_l[...,None],right_l[...,None]),axis=-1)
+        # делаем то же самое для вертикальных отрезков
+        bottom=np.indices((self._size[0],self._size[1]-1))
+        top=bottom+np.array([0,1])[:,None,None]
+        bottom_r=bottom.reshape((2,-1))
+        top_r=top.reshape((2,-1))
+        bottom_l=np.ravel_multi_index(bottom_r, self._size)
+        top_l=np.ravel_multi_index(top_r, self._size)
+        vertical=np.concatenate((bottom_l[...,None],top_l[...,None]),axis=-1)
+        return np.concatenate((horizontal,vertical),axis=0).astype(np.uint32)
 
 vert = ("""
 #version 120
@@ -133,9 +155,11 @@ class Canvas(app.Canvas):
         gloo.set_state(clear_color=(0,0,0,1), depth_test=False, blend=False)
         self.program = gloo.Program(vert, frag)
         # Создаем обьект, который будет давать нам состояние поверхности
-        self.surface=Surface((10,10))
+        self.surface=Surface((15,15))
         # xy координаты точек сразу передаем шейдеру, они не будут изменятся со временем
-        self.program["a_position"]=self.surface.position()
+        self.program["a_position"]=self.surface.position()        
+        # Сохраним вершины, которые нужно соединить отрезками, в графическую память.
+        self.segments=gloo.IndexBuffer(self.surface.wireframe())
         # Устанавливаем начальное время симуляции
         self.t=0
         # Закускаем таймер, который будет вызывать метод on_timer для
@@ -152,10 +176,11 @@ class Canvas(app.Canvas):
         gloo.clear()
         # Читаем положение высот для текущего времени
         self.program["a_height"]=self.surface.height(self.t)
-        # Отрисовываем точки сетки точками на экране
-        self.program.draw('points')
-        # В результате видим анимированную картину "буйков"
-        # качающихся на волнах.
+        # Теперь мы отресовываем отрезки, поэтому аргумент "lines",
+        # и теперь нужно передать индексы вершин self.segments, которые нужно соединить.
+        self.program.draw('lines', self.segments)
+        # В результате видим сеть из вертикальных и горизонтальных отрезков.
+        # Интересно, что нам не пришлось никаких изменения в шейдеры.
 
     # Метод, вызываемый таймером.
     # Используем для создания анимации.
