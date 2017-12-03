@@ -89,28 +89,31 @@ class Surface(object):
              x*self._wave_vector[n,0] + y*self._wave_vector[n,1] +
                 t*self._angular_frequency[n])
         return z
-    def wireframe(self):
-        # Возвращаем координаты всех вершин, кроме крайнего правого столбца
-        left=np.indices((self._size[0]-1,self._size[1]))
-        # Пересчитываем в координаты всех точек, кроме крайнего левого столбца
-        right=left+np.array([1,0])[:,None,None]
-        # Преобразуем массив точек в список (одномерный массив)
-        left_r=left.reshape((2,-1))
-        right_r=right.reshape((2,-1))
+    
+    def triangulation(self):
+        # Решетка состоит из прямоугольников с вершинами 
+        # D  С
+        # A  B
+        # Посчитаем индексы всех точек A,B,C,D для каждого из прямоугольников.
+        a=np.indices((self._size[0]-1,self._size[1]-1))
+        b=a+np.array([1,0])[:,None,None]
+        c=a+np.array([1,1])[:,None,None]
+        d=a+np.array([0,1])[:,None,None]
+        # Преобразуем массив индексов в список (одномерный массив)
+        a_r=a.reshape((2,-1))
+        b_r=b.reshape((2,-1))
+        c_r=c.reshape((2,-1))
+        d_r=d.reshape((2,-1))
         # Заменяем многомерные индексы линейными индексами
-        left_l=np.ravel_multi_index(left_r, self._size)
-        right_l=np.ravel_multi_index(right_r, self._size)
-        # собираем массив пар точек
-        horizontal=np.concatenate((left_l[...,None],right_l[...,None]),axis=-1)
-        # делаем то же самое для вертикальных отрезков
-        bottom=np.indices((self._size[0],self._size[1]-1))
-        top=bottom+np.array([0,1])[:,None,None]
-        bottom_r=bottom.reshape((2,-1))
-        top_r=top.reshape((2,-1))
-        bottom_l=np.ravel_multi_index(bottom_r, self._size)
-        top_l=np.ravel_multi_index(top_r, self._size)
-        vertical=np.concatenate((bottom_l[...,None],top_l[...,None]),axis=-1)
-        return np.concatenate((horizontal,vertical),axis=0).astype(np.uint32)
+        a_l=np.ravel_multi_index(a_r, self._size)
+        b_l=np.ravel_multi_index(b_r, self._size)
+        c_l=np.ravel_multi_index(c_r, self._size)
+        d_l=np.ravel_multi_index(d_r, self._size)
+        # Собираем массив индексов вершин треугольников ABC, ACD
+        abc=np.concatenate((a_l[...,None],b_l[...,None],c_l[...,None]),axis=-1)
+        acd=np.concatenate((a_l[...,None],c_l[...,None],d_l[...,None]),axis=-1)
+        # Обьединяем треугольники ABC и ACD для всех прямоугольников        
+        return np.concatenate((abc,acd),axis=0).astype(np.uint32)
 
 vert = ("""
 #version 120
@@ -122,7 +125,11 @@ attribute vec2 a_position;
 # +1 отвечает врехнему (ближнему к наблюдателю) положению поверхности.
 """
 attribute float a_height;
-void main (void) {
+
+varying float v_z;
+
+void main (void) {    
+    v_z=(1-a_height)*0.5;
 """
     # Собираем положение точки в пространстве из xy координат и высоты.
     # Отображаем диапазон высот [-1,1] в интервал [1,0],
@@ -143,8 +150,11 @@ void main (void) {
 
 frag = """
 #version 120
+
+varying float v_z;
 void main() {
-    gl_FragColor = vec4(0.5,0.5,1,1);
+    vec3 rgb=mix(vec3(1,0.5,0),vec3(0,0.5,1.0),v_z);
+    gl_FragColor = vec4(rgb,1);
 }
 """
 
@@ -159,7 +169,7 @@ class Canvas(app.Canvas):
         # xy координаты точек сразу передаем шейдеру, они не будут изменятся со временем
         self.program["a_position"]=self.surface.position()        
         # Сохраним вершины, которые нужно соединить отрезками, в графическую память.
-        self.segments=gloo.IndexBuffer(self.surface.wireframe())
+        self.triangles=gloo.IndexBuffer(self.surface.triangulation())
         # Устанавливаем начальное время симуляции
         self.t=0
         # Закускаем таймер, который будет вызывать метод on_timer для
@@ -178,7 +188,7 @@ class Canvas(app.Canvas):
         self.program["a_height"]=self.surface.height(self.t)
         # Теперь мы отресовываем отрезки, поэтому аргумент "lines",
         # и теперь нужно передать индексы вершин self.segments, которые нужно соединить.
-        self.program.draw('lines', self.segments)
+        self.program.draw('triangles', self.triangles)
         # В результате видим сеть из вертикальных и горизонтальных отрезков.
         # Интересно, что нам не пришлось никаких изменения в шейдеры.
 
