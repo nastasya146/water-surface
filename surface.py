@@ -83,7 +83,7 @@ class CircularWaves(PlaneWaves):
         self._speed = speed
         self.t = 0
         self._scale = 1.0
-        self._amplitude_shift = 0.00005
+        self._amplitude_shift = 0.000005
         self._is_dead = False
 
     def height_and_normal(self):
