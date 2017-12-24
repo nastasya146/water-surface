@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import numpy as np
 from surface import CircularWaves
 
@@ -47,5 +49,6 @@ class BedCircular():
             Диапазон изменения высоты от -1 до 1, значение 0 отвечает равновесному положению
         """
         wave = CircularWaves(self._size, self._max_depth, wave_length=0.6)
-        d, grad = wave.height_and_normal()
+        d = wave.height()
+        grad = wave.normal()
         return d + self._min_depth

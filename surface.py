@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import numpy as np
 
 class PlaneWaves(object):
@@ -27,26 +29,50 @@ class PlaneWaves(object):
         xy[:, :, 1]=np.linspace(-1, 1, self._size[1])[None, :]
         return self._scale * xy
 
-    def height_and_normal(self):
-        """
-            Эта функция возвращает массив высот водной глади в момент времени t.
-            Диапазон изменения высоты от -1 до 1, значение 0 отвечает равновесному положению
-        """
+    def coords(self):
+      # N x 1 array
+      x = np.linspace(-1, 1, self._size[0])[:, np.newaxis]
+      # 1 x N array
+      y = np.linspace(-1, 1, self._size[1])[np.newaxis, :]
+      return x, y
+
+    def empty_arr(self, shape):
+      # each cell equals 0
+      return np.zeros(shape, dtype=np.float32)
+
+    def height(self, time=0):
         x = self._scale * np.linspace(-1, 1, self._size[0])[:, None]
         y = self._scale * np.linspace(-1, 1, self._size[1])[None, :]
         z = np.zeros(self._size, dtype=np.float32)
         grad = np.zeros(self._size + (2,), dtype=np.float32)
         for n in range(self._amplitude.shape[0]):
             arg = (self._phase[n]
-                + x * self._wave_vector[n, 0]
-                + y * self._wave_vector[n, 1]
-                + self.t * self._angular_frequency[n]
-            )
+                   + x * self._wave_vector[n, 0]
+                   + y * self._wave_vector[n, 1]
+                   + self.t * self._angular_frequency[n]
+                   )
             z[:, :] += self._amplitude[n] * np.cos(arg)
             dcos = -self._amplitude[n] * np.sin(arg)
             grad[:, :, 0] += self._wave_vector[n, 0] * dcos
             grad[:, :, 1] += self._wave_vector[n, 1] * dcos
-        return z, grad
+        return z
+
+    def normal(self, time=0):
+            x = self._scale * np.linspace(-1, 1, self._size[0])[:, None]
+            y = self._scale * np.linspace(-1, 1, self._size[1])[None, :]
+            z = np.zeros(self._size, dtype=np.float32)
+            grad = np.zeros(self._size + (2,), dtype=np.float32)
+            for n in range(self._amplitude.shape[0]):
+                arg = (self._phase[n]
+                       + x * self._wave_vector[n, 0]
+                       + y * self._wave_vector[n, 1]
+                       + self.t * self._angular_frequency[n]
+                       )
+                z[:, :] += self._amplitude[n] * np.cos(arg)
+                dcos = -self._amplitude[n] * np.sin(arg)
+                grad[:, :, 0] += self._wave_vector[n, 0] * dcos
+                grad[:, :, 1] += self._wave_vector[n, 1] * dcos
+            return grad
 
      # Возвращает массив индесов вершин треугольников.
     def triangulation(self):
@@ -86,21 +112,37 @@ class CircularWaves(PlaneWaves):
         self._amplitude_shift = 0.000005
         self._is_dead = False
 
-    def height_and_normal(self):
-        x = self._scale * np.linspace(-1, 1, self._size[0])[:, None]
-        y = self._scale * np.linspace(-1, 1, self._size[1])[None, :]
-        z = np.empty(self._size, dtype=np.float32)
+    def coords(self):
+        # N x 1 array
+        x = np.linspace(-1, 1, self._size[0])[:, np.newaxis]
+        # 1 x N array
+        y = np.linspace(-1, 1, self._size[1])[np.newaxis, :]
 
-        grad = np.zeros(self._size + (2,), dtype=np.float32)
-        d = np.sqrt((x - self._center[0])**2 + (y - self._center[1])**2)
+        return x, y
 
-        arg = self._omega * d - self.t * self._speed
-        z[:, :] = self._amplitude * np.cos(arg)
-        dcos = -self._amplitude * self._omega * np.sin(arg)
+    def empty_arr(self, shape):
+        # each cell equals 0
+        return np.zeros(shape, dtype=np.float32)
 
-        grad[:, :, 0] += (x - self._center[0]) * dcos / d
-        grad[:, :, 1] += (y - self._center[1]) * dcos / d
-        return z, grad
+
+    def height(self, time=0):
+        x, y = self.coords()
+        height = self.empty_arr(self._size)
+        d = np.sqrt((x - self._center[0]) ** 2 + (y - self._center[1]) ** 2)
+        angle = self._omega * d - time * self._speed
+        height[:, :] = self._amplitude * np.cos(angle)
+        return height
+
+    def normal(self, time=0):
+        x, y = self.coords()
+        shape = (self._size[0], self._size[1], 2)
+        grad = np.zeros(shape, dtype=np.float32)
+        d = np.sqrt((x - self._center[0]) ** 2 + (y - self._center[1]) ** 2)
+        angle = self._omega * d - time * self._speed
+        delta_cos = -self._amplitude * self._omega * np.sin(angle)
+        grad[:, :, 0] += (x - self._center[0]) * delta_cos / d
+        grad[:, :, 1] += (y - self._center[1]) * delta_cos / d
+        return grad
 
     def propagate(self, time_shift):
         self.t += time_shift

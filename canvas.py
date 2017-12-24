@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import numpy as np
 from vispy import gloo, app, io
 from vertex import vertex
@@ -6,9 +8,9 @@ from fragment_point import fragment_point
 
 class Canvas(app.Canvas):
     def __init__(self, surface, bed, new_waves_class=None, size=(600, 600), 
-            sky_img_path="D:\Documents\water-surface\water-surface/fluffy_clouds.png", 
-            bed_img_path="D:\Documents\water-surface\water-surface/seabed.png",
-            depth_img_path="D:\Documents\water-surface\water-surface/depth.png"):
+            sky_img_path="fluffy_clouds.png",
+            bed_img_path="seabed.png",
+            depth_img_path="depth.png"):
         app.Canvas.__init__(self, size=size,
                             title="Water surface simulator")
         # запрещаем текст глубины depth_test (все точки будут отрисовываться),
@@ -22,6 +24,7 @@ class Canvas(app.Canvas):
         self.surface_wave_list = []
         self.add_wave_center((self.size[0] / 2, self.size[1] / 2))
 
+        self.time = 0
         self.bed = bed
         self.sky_img = io.read_png(sky_img_path)
         self.bed_img = io.read_png(bed_img_path)
@@ -61,6 +64,7 @@ class Canvas(app.Canvas):
         self.bed_flag = True
         self.depth_flag = True
         self.sky_flag = True
+        self.stop_flag = False
         self.apply_flags()
 
         # Run
@@ -116,7 +120,8 @@ class Canvas(app.Canvas):
         sf_len = 0
         for sf in self.surface_wave_list:
             sf_len += 1
-            height, grad = sf.height_and_normal()
+            height = sf.height()
+            grad = sf.normal()
             if height_total is None:
                 height_total = height
             else:
@@ -126,7 +131,8 @@ class Canvas(app.Canvas):
             else:
                 grad_total += grad
         if height_total is None:
-            avg_height, avg_grad = self.surface.height_and_normal()
+            avg_height= self.surface.height()
+            avg_grad = self.surface.normal()
         else:
             avg_height = height_total / sf_len
             avg_grad = grad_total / sf_len
@@ -136,7 +142,8 @@ class Canvas(app.Canvas):
         # Все пиксели устанавливаются в значение clear_color,
         gloo.clear()
         # Читаем положение высот для текущего времени
-        height, grad = self.get_height_and_normal()
+        height = self.surface.height(self.time)
+        grad = self.surface.normal(self.time)
         self.program["a_height"] = height
         self.program["a_normal"] = grad
         gloo.set_state(depth_test=True)
@@ -147,10 +154,10 @@ class Canvas(app.Canvas):
             self.program_point.draw('points')
 
     def on_timer(self, event):
-        self.surface.propagate(0.01)
-        for sf in self.surface_wave_list:
-            sf.propagate(0.01)
-        self.update()
+        if not self.stop_flag:
+            self.time += 0.01
+            # calls on_draw
+            self.update()
 
     def on_resize(self, event):
         self.activate_zoom()
