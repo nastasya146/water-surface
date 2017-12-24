@@ -5,7 +5,7 @@ from surface import CircularWaves
 
 
 class BedLiner(object):
-    def __init__(self, size=(400, 400), max_depth=1.0, min_depth = 16.0):
+    def __init__(self, size=(400, 400), max_depth=1.0, min_depth = 1.0):
         """
             Конструктор получает размер генерируемого массива.
             Также конструктор Генерируется параметры нескольких плоских волн.

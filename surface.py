@@ -3,7 +3,7 @@
 import numpy as np
 
 class PlaneWaves(object):
-    def __init__(self, size=(100,100), flat_wave_size=10, max_height=0.2):
+    def __init__(self, size=(50,50), flat_wave_size=10, max_height=0.2):
         """
             Конструктор получает размер генерируемого массива.
             Также конструктор Генерируется параметры нескольких плоских волн.
@@ -101,7 +101,7 @@ class PlaneWaves(object):
 
 
 class CircularWaves(PlaneWaves):
-    def __init__(self, size=(100, 100), max_height=0.02, wave_length=0.3, center=(0., 0.), speed=3):
+    def __init__(self, size=(50, 50), max_height=0.02, wave_length=0.3, center=(0., 0.), speed=3):
         self._size = size
         self._amplitude = max_height
         self._omega = 2 * np.pi / wave_length

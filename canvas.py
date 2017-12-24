@@ -6,11 +6,15 @@ from vertex import vertex
 from fragment_triangle import fragment_triangle
 from fragment_point import fragment_point
 
+from runge_kutta import RungeKutta
+from euler import Euler
+from verlet import Verlet
+
 class Canvas(app.Canvas):
-    def __init__(self, surface, bed, new_waves_class=None, size=(600, 600), 
-            sky_img_path="fluffy_clouds.png",
-            bed_img_path="seabed.png",
-            depth_img_path="depth.png"):
+    def __init__(self, surface, bed, size=(600, 600), 
+            sky_img_path="water-surface/fluffy_clouds.png",
+            bed_img_path="water-surface/seabed.png",
+            depth_img_path="water-surface/depth.png"):
         app.Canvas.__init__(self, size=size,
                             title="Water surface simulator")
         # запрещаем текст глубины depth_test (все точки будут отрисовываться),
@@ -18,11 +22,13 @@ class Canvas(app.Canvas):
         gloo.set_state(clear_color=(0, 0, 0, 1), depth_test=True, blend=True)
         self.program = gloo.Program(vertex, fragment_triangle)
         self.program_point = gloo.Program(vertex, fragment_point)
+        
+        self.h_description = None
+        self.integrator = RungeKutta(method="blyamba", borders=True)
+        #self.integrator = Euler(method="drop", borders=True)
+        #self.integrator = Verlet(method="peak", borders=True)
 
         self.surface = surface
-        self.surface_class = new_waves_class
-        self.surface_wave_list = []
-        self.add_wave_center((self.size[0] / 2, self.size[1] / 2))
 
         self.time = 0
         self.bed = bed
@@ -106,46 +112,15 @@ class Canvas(app.Canvas):
         self.width, self.height = self.size
         gloo.set_viewport(0, 0, *self.physical_size)
 
-    def add_wave_center(self, center):
-        if self.surface_class is None:
-            return
-        pos_x = 1.5 * (center[0] - self.physical_size[0] / 2) / self.physical_size[0]
-        pos_y = 1.5 * (-(center[1] - self.physical_size[1] / 2) / self.physical_size[1])
-        self.surface_wave_list = [sf for sf in self.surface_wave_list if not sf.is_dead()]
-        self.surface_wave_list.append(self.surface_class(center=(pos_x, pos_y)))
-
-    def get_height_and_normal(self):
-        height_total = None
-        grad_total = None
-        sf_len = 0
-        for sf in self.surface_wave_list:
-            sf_len += 1
-            height = sf.height()
-            grad = sf.normal()
-            if height_total is None:
-                height_total = height
-            else:
-                height_total += height
-            if grad_total is None:
-                grad_total = grad
-            else:
-                grad_total += grad
-        if height_total is None:
-            avg_height= self.surface.height()
-            avg_grad = self.surface.normal()
-        else:
-            avg_height = height_total / sf_len
-            avg_grad = grad_total / sf_len
-        return avg_height, avg_grad
-
     def on_draw(self, event):
         # Все пиксели устанавливаются в значение clear_color,
         gloo.clear()
         # Читаем положение высот для текущего времени
-        height = self.surface.height(self.time)
-        grad = self.surface.normal(self.time)
+        self.h_description = self.integrator.get_heights(self.h_description)
+        height = self.h_description[0]
+        normal = self.integrator.get_normal(height)
         self.program["a_height"] = height
-        self.program["a_normal"] = grad
+        self.program["a_normal"] = normal
         gloo.set_state(depth_test=True)
         self.program.draw('triangles', self.triangles)
         if self.are_points_visible:
@@ -198,7 +173,6 @@ class Canvas(app.Canvas):
 
     def on_mouse_press(self, event):
         self.drag_start = self.screen_to_gl_coordinates(event.pos)
-        self.add_wave_center(event.pos)
 
     def on_mouse_move(self, event):
         if not self.drag_start is None:
