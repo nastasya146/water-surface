@@ -5,11 +5,11 @@ uniform float u_eye_height;
 uniform mat4 u_world_view;
 uniform float u_alpha;
 uniform float u_bed_depth;
+uniform sampler2D u_bed_depth_texture;
+uniform sampler2D u_bed_texture;
 
 attribute vec2 a_position;
-attribute vec2 a_start_position;
 attribute float a_height;
-attribute float a_bed_depth;
 attribute vec2 a_normal;
 
 varying vec3 v_normal;
@@ -19,20 +19,14 @@ varying vec2 v_sky_texcoord;
 varying vec2 v_bed_texcoord;
 varying float v_reflectance;
 varying vec3 v_mask;
-varying float bed_upper_water;
 
 void main (void) {
     v_normal = normalize(vec3(a_normal, -1));
     v_position = vec3(a_position.xy, a_height);
 
-    float total_depth = -a_bed_depth - u_bed_depth;
-
     vec4 position_view = u_world_view * vec4(v_position, 1);
     float z = 1 - (1 + position_view.z) / (1 + u_eye_height);
     gl_Position = vec4(position_view.xy, -position_view.z*z, z);
-
-    vec4 depth_position_view = u_world_view * vec4(a_start_position.xy, total_depth, 1);
-    float z_depth = 1 - (1 + depth_position_view.z) / (1 + u_eye_height);
 
     vec4 eye_view = vec4(0, 0, u_eye_height, 1);
     vec4 eye = transpose(u_world_view) * eye_view;
@@ -47,15 +41,9 @@ void main (void) {
     vec3 refracted = normalize(u_alpha * cross(cr, normal) - normal * c2);
 
     float c1 =- dot(normal, from_eye);
+    float total_depth = u_bed_depth;
     float t = (total_depth - v_position.z) / refracted.z;
     vec3 point_on_bed = v_position + t * refracted;
-    if (total_depth > a_height) {
-        point_on_bed = v_position;
-        gl_Position = vec4(depth_position_view.xy, -position_view.z * z_depth, z_depth);
-        bed_upper_water = 1;
-    } else {
-        bed_upper_water = 0;
-    }
     v_bed_texcoord = point_on_bed.xy + vec2(0.5, 0.5);
 
     float reflectance_s = pow((u_alpha * c1 - c2) / (u_alpha * c1 + c2), 2);

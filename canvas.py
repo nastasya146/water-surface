@@ -5,9 +5,12 @@ from fragment_triangle import fragment_triangle
 from fragment_point import fragment_point
 
 class Canvas(app.Canvas):
-    def __init__(self, surface, bed, new_waves_class=None, size=(600, 600), sky_img_path="D:\Documents\water-surface\water-surface/fluffy_clouds.png", bed_img_path="D:\Documents\water-surface\water-surface/seabed.png"):
+    def __init__(self, surface, bed, new_waves_class=None, size=(600, 600), 
+            sky_img_path="D:\Documents\water-surface\water-surface/fluffy_clouds.png", 
+            bed_img_path="D:\Documents\water-surface\water-surface/seabed.png",
+            depth_img_path="D:\Documents\water-surface\water-surface/depth.png"):
         app.Canvas.__init__(self, size=size,
-                            title="Water surface simulator 2")
+                            title="Water surface simulator")
         # запрещаем текст глубины depth_test (все точки будут отрисовываться),
         # запрещает смещивание цветов blend - цвет пикселя на экране равен gl_fragColor.
         gloo.set_state(clear_color=(0, 0, 0, 1), depth_test=True, blend=True)
@@ -22,21 +25,24 @@ class Canvas(app.Canvas):
         self.bed = bed
         self.sky_img = io.read_png(sky_img_path)
         self.bed_img = io.read_png(bed_img_path)
+        io.write_png(depth_img_path, self.bed.depth())
+        self.depth_img = io.read_png(depth_img_path)
+        
         # xy координаты точек сразу передаем шейдеру, они не будут изменятся со временем
         self.program["a_position"] = self.surface.position()
-        self.program["a_start_position"] = self.surface.position()
         self.program_point["a_position"] = self.surface.position()
 
         self.program['u_sky_texture'] = gloo.Texture2D(
             self.sky_img, wrapping='repeat', interpolation='linear')
         self.program['u_bed_texture'] = gloo.Texture2D(
             self.bed_img, wrapping='repeat', interpolation='linear')
-
+        
+        self.program['u_bed_depth_texture'] = gloo.Texture2D(
+            self.depth_img, wrapping='repeat', interpolation='linear')
+            
         self.program_point["u_eye_height"] = self.program["u_eye_height"] = 3
-
         self.program["u_alpha"] = 0.3
-        self.program["a_bed_depth"] = self.bed.depth()
-        self.program["u_bed_depth"] = 0.0
+        self.program["u_bed_depth"] = -0.5
 
         self.program["u_sun_direction"] = self.normalize([0, 1, 0.1])
         self.program["u_sun_diffused_color"] = [1, 0.8, 1]

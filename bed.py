@@ -3,7 +3,7 @@ from surface import CircularWaves
 
 
 class BedLiner(object):
-    def __init__(self, size=(100, 100), max_depth=1.0, min_depth = 0.5):
+    def __init__(self, size=(400, 400), max_depth=1.0, min_depth = 16.0):
         """
             Конструктор получает размер генерируемого массива.
             Также конструктор Генерируется параметры нескольких плоских волн.
@@ -18,36 +18,17 @@ class BedLiner(object):
             Диапазон изменения высоты от -1 до 1, значение 0 отвечает равновесному положению
         """
         x = np.linspace(self._min_depth, self._max_depth,
-                        self._size[0])[:, None]
+                        self._size[0])
         y = np.linspace(self._min_depth, self._max_depth,
-                        self._size[1])[None, :]
-        d = np.zeros(self._size, dtype=np.float32)
-        d[:, :] = x * y
-        return d
+                        self._size[1])
+        z = np.linspace(1, 1, 3)
+        d = np.zeros(self._size + (4, ), dtype=np.uint8)
 
-
-class BedLog(object):
-    def __init__(self, size=(100, 100), max_depth=3.0, min_depth=0.5):
-        """
-            Конструктор получает размер генерируемого массива.
-            Также конструктор Генерируется параметры нескольких плоских волн.
-        """
-        self._size = size
-        self._max_depth = max_depth
-        self._min_depth = min_depth
-
-    def depth(self):
-        """
-            Эта функция возвращает массив высот водной глади в момент времени t.
-            Диапазон изменения высоты от -1 до 1, значение 0 отвечает равновесному положению
-        """
-        part = self._min_depth + np.logspace(0, 1, self._size[0] / 2) / 10.0 * (self._max_depth - self._min_depth)
-        center = np.array([self._max_depth] if self._size[0] % 2 == 1 else [])
-        full_array = np.concatenate((part, center, part))
-        x = full_array[:, None]
-        y = full_array[None, :]
-        d = np.zeros(self._size, dtype=np.float32)
-        d[:, :] = x * y
+        for x_idx, x_value in enumerate(x):
+            for y_idx, y_value in enumerate(y):
+                for z_idx, z_value in enumerate(z):
+                    d[x_idx, y_idx, z_idx] = x_value * y_value
+                d[x_idx, y_idx, 3] = 255
         return d
 
 class BedCircular():
